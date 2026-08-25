@@ -44,6 +44,9 @@ const remoteBlock = `  // ================= Remote 服务（client 面板通信�
     async save(payload) {
       return addServer((payload && typeof payload === 'object') ? payload : {});
     }
+    async update(serverName, payload) {
+      return updateServer(typeof serverName === 'string' ? serverName : '', (payload && typeof payload === 'object') ? payload : {});
+    }
     async connect(serverName) {
       return connectServer(typeof serverName === 'string' ? serverName : '');
     }
@@ -74,6 +77,7 @@ const remoteBlock = `  // ================= Remote 服务（client 面板通信�
         invocations: [
           { id: 'dsh-mcp-manager#mcpManager/list', service: 'mcpManager', namespace: 'mcpManager', method: 'list', invocation: { kind: 'direct' }, parameters: [], result: { mode: 'src-json' } },
           { id: 'dsh-mcp-manager#mcpManager/save', service: 'mcpManager', namespace: 'mcpManager', method: 'save', invocation: { kind: 'direct' }, parameters: [wire('payload')], result: { mode: 'src-json' } },
+          { id: 'dsh-mcp-manager#mcpManager/update', service: 'mcpManager', namespace: 'mcpManager', method: 'update', invocation: { kind: 'direct' }, parameters: [wire('serverName'), wire('payload')], result: { mode: 'src-json' } },
           { id: 'dsh-mcp-manager#mcpManager/connect', service: 'mcpManager', namespace: 'mcpManager', method: 'connect', invocation: { kind: 'direct' }, parameters: [wire('serverName')], result: { mode: 'src-json' } },
           { id: 'dsh-mcp-manager#mcpManager/disconnect', service: 'mcpManager', namespace: 'mcpManager', method: 'disconnect', invocation: { kind: 'direct' }, parameters: [wire('serverName')], result: { mode: 'src-json' } },
           { id: 'dsh-mcp-manager#mcpManager/remove', service: 'mcpManager', namespace: 'mcpManager', method: 'remove', invocation: { kind: 'direct' }, parameters: [wire('serverName')], result: { mode: 'src-json' } },
@@ -111,7 +115,7 @@ out = header + out;
 const tail = `
 // 纯 JS 模拟 @Remote('name') 装饰器：构造 decorator context，把标记写入服务原型。
 function markRemoteMethods(service) {
-  const methods = ['list', 'save', 'connect', 'disconnect', 'remove', 'refresh'];
+  const methods = ['list', 'save', 'update', 'connect', 'disconnect', 'remove', 'refresh'];
   for (const method of methods) {
     const initializers = [];
     const fakeContext = {

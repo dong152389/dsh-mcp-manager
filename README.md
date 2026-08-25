@@ -1,18 +1,17 @@
 # dsh-mcp-manager
 
-DeepSeek Harness (DSH) 的 MCP 服务器管理插件：支持 **stdio / SSE / Streamable HTTP** 三种 MCP 传输，以及将 **OpenAPI** 规范转换为模型工具。连接服务器后，其工具会自动注册为模型可调用的工具。
+DeepSeek Harness (DSH) 的 MCP 服务器管理插件：支持 **STDIO** 本地进程、**HTTP / SSE** 统一流式传输，以及将 **OpenAPI** 规范转换为模型工具。连接服务器后，其工具会自动同步并注册为模型可调用的工具；设置页提供现代化的可视化管理面板。
 
 ## 功能特性
 
-- **四种接入方式**
-  - `stdio`：派生本地进程（`npx` / `node` / `python` / `uvx` 等），JSON-RPC 2.0 over NDJSON
-  - `sse`：经典 SSE 传输（`endpoint` 事件 + POST 消息端点），支持 sessionId 与断线自动重连（3 次退避）
-  - `http`：Streamable HTTP（单端点 POST，`Mcp-Session-Id` 会话、JSON/SSE 双响应、202+Location 异步轮询）
-  - `openapi`：从规范 URL / 本地文件 / JSON 模式文本加载 OpenAPI（JSON 与常见 YAML 子集），`paths` 自动转换为模型工具，支持 `$ref` 解析、安全类型（Bearer / Basic / API Key）、Cookie 会话处理
-- **工具自动同步**：`tools/list` → 自动注册 `<前缀>_<工具名>`；收到 `notifications/tools/list_changed` 自动刷新
-- **可靠性**：请求取消（`notifications/cancelled`）、心跳（SSE/HTTP 每 30s ping）、超时与错误分级
-- **管理工具**（注册为模型工具）：`mcp_add` / `mcp_list` / `mcp_connect` / `mcp_disconnect` / `mcp_refresh` / `mcp_remove`
-- **设置页管理面板**（正式插件 client 面）：设置 →「MCP 服务器」，提供添加服务器表单（名称/注释、四种类型的动态配置项、请求头/环境变量键值列表、安全类型、Cookie 会话开关）与服务器状态列表
+- **三种核心接入方式**
+  - `stdio`：派生本地进程（`npx` / `node` / `python` / `uvx` 等），JSON-RPC 2.0 over NDJSON。
+  - `http`（**HTTP / SSE 统一传输**）：统一支持 Streamable HTTP（POST 请求、`Mcp-Session-Id` 会话头、JSON / SSE 响应、202+Location 轮询）与经典 SSE 传输（GET /sse 建立长连接流 + `endpoint` 事件后 POST）。内置自动回退协商与断线自动重连。
+  - `openapi`：从规范 URL / 本地文件 / JSON 模式文本加载 OpenAPI（JSON 与常见 YAML 子集），`paths` 自动转换为模型工具，支持 `$ref` 解析、安全类型（Bearer / Basic / API Key）、Cookie 会话自动携带。
+- **现代化可视化 UI 面板**：设置 →「MCP 服务器」，自适应深浅色主题、指标卡片与统计栏、微光状态呼吸徽章、代码配置预览块、工具数量标签、精致操作按钮组/加载反馈、3-Card 分段选择器、紧凑键值对编辑器、空状态指引。
+- **工具自动同步**：`tools/list` → 自动注册 `<前缀>_<工具名>`；收到 `notifications/tools/list_changed` 自动刷新。
+- **可靠性保证**：请求取消（`notifications/cancelled`）、心跳健康检查（HTTP / SSE 每 30s ping）、超时与错误分级。
+- **双模管理**：支持自然语言管理工具（`mcp_add` / `mcp_list` / `mcp_connect` / `mcp_disconnect` / `mcp_refresh` / `mcp_remove`）与设置页可视化面板。
 
 ## 安装
 
@@ -87,10 +86,9 @@ return {
 
 ```
 mcp_add      { name: "my-fs", transport: "stdio", command: "npx", args: ["-y", "@modelcontextprotocol/server-filesystem", "C:\\workspace"] }
-mcp_add      { name: "my-sse", transport: "sse", url: "https://example.com/sse", token: "sk-..." }
-mcp_add      { name: "my-http", transport: "http", url: "https://example.com/mcp", headers: {"X-Key": "..."} }
+mcp_add      { name: "my-remote", transport: "http", url: "https://example.com/mcp", headers: {"Authorization": "Bearer sk-..."} }
 mcp_add      { name: "petstore", transport: "openapi", specUrl: "https://petstore.swagger.io/v2/swagger.json", baseUrl: "https://petstore.swagger.io/v2", securityType: "apiKey", apiKeyName: "api_key", apiKeyValue: "..." }
-mcp_connect  { name: "my-http" }   # 之后 my_http_xxx 工具可直接调用
+mcp_connect  { name: "my-remote" }   # 之后 my_remote_xxx 工具可直接调用
 ```
 
 OpenAPI 服务器还支持 `specText`（JSON 模式文本）、`specFile`（本地文件）、`cookieSession`（保存 Set-Cookie 并自动携带）。
@@ -99,8 +97,8 @@ OpenAPI 服务器还支持 `specText`（JSON 模式文本）、`specFile`（本�
 
 | 工具 | 说明 |
 | --- | --- |
-| `mcp_add` | 添加服务器（名称、注释、传输类型与对应配置） |
-| `mcp_list` | 列出所有服务器及状态 |
+| `mcp_add` | 添加服务器（名称、注释、传输类型 `stdio` / `http` / `openapi` 与对应配置） |
+| `mcp_list` | 列出所有服务器及状态（状态、工具数、传输方式、错误） |
 | `mcp_connect` | 连接并同步工具（已连接时刷新） |
 | `mcp_disconnect` | 断开并注销工具（配置保留） |
 | `mcp_refresh` | 重新拉取工具列表 |
@@ -137,12 +135,7 @@ dsh-mcp-manager/
 
 stdio 传输则直接通过 DSH 的 `subprocess` 服务派生 MCP 进程，NDJSON 帧与 JSON-RPC 在同一套会话逻辑中处理。
 
-Client 面（设置页面板）通过 `TypertRemoteService`（`@deepseek-ai/dsh-typert-protocol`）暴露 `mcpManager` Remote 服务，浏览器 bundle 经 `connection.rpc.call("/api", ...)` 与 Host 通信（纯 JS 以模拟 decorator context 的方式写入 `@Remote` 标记，走 Gateway 的 SRC 路由）。
-
-## Roadmap
-
-- [ ] 服务器配置持久化（当前为进程内内存）
-- [ ] MCP 资源（resources/list）与提示（prompts/list）同步
+Client 面（设置页面板）通过 `TypertRemoteService`（`@deepseek-ai/dsh-typert-protocol`）暴露 `mcpManager` Remote 服务，浏览器 bundle 经 `connection.rpc.call("/api", ...)` 与 Host 通信。
 
 ## License
 

@@ -1,7 +1,7 @@
 // Mock MCP server for testing the DSH MCP Manager bridge (stdio-free HTTP test).
 // Supports: POST /mcp (streamable-HTTP style JSON-RPC) and GET /sse (SSE transport).
-'use strict';
-const http = require('node:http');
+import { createServer } from 'node:http';
+
 const PORT = 3897;
 
 function sendJson(res, status, obj, extraHeaders) {
@@ -10,7 +10,7 @@ function sendJson(res, status, obj, extraHeaders) {
   res.end(body);
 }
 
-const server = http.createServer(function (req, res) {
+const server = createServer(function (req, res) {
   const url = req.url || '/';
   if (req.method === 'POST' && url.startsWith('/mcp')) {
     let raw = '';
