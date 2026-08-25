@@ -130,7 +130,7 @@ function markRemoteMethods(service) {
 }
 
 export const name = 'dsh-mcp-manager';
-export const inject = ['timer', 'subprocess', 'fs', 'tools', 'typert'];
+export const inject = ['timer', 'subprocess', 'fs', 'tools', 'typert', 'storageDomain'];
 `;
 out += tail;
 

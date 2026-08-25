@@ -6,6 +6,20 @@
   const workspaceRoot = (sp && typeof sp.workspaceRoot === 'string') ? sp.workspaceRoot : null;
   const BRIDGE_PATH = 'C:\\Users\\dong5\\dsh-mcp-manager\\lib\\bridge.js';
 
+  // MCP 配置属于非会话数据，使用 DSH 的 storage-domain + JSON backend 持久化。
+  // 动态插件环境不能直接 import zod，因此这里提供一个透传 schema；实际的
+  // 记录结构会在恢复时由 restoreServerRecord 做校验。
+  const MCP_STORAGE_SPEC = {
+    name: 'dsh_mcp_manager',
+    version: 1,
+    tables: {
+      servers: {
+        parse(value) { return value; },
+        safeParse(value) { return { success: true, data: value }; },
+      },
+    },
+  };
+
   // ================= 基础工具函数 =================
   function sanitizeName(s) {
     const v = String(s || '').toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '');
@@ -821,6 +835,66 @@
 
   // ================= 服务器注册表 =================
   const servers = new Map();
+  let persistedDomain = null;
+  let persistedServers = null;
+  let persistenceError = null;
+  let persistenceReady = Promise.resolve();
+
+  function cloneJson(value) {
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  function createServer(name, config, prefix) {
+    return {
+      name,
+      config,
+      prefix: sanitizeName(prefix || name) || 'mcp',
+      status: 'configured',
+      serverInfo: null,
+      toolCount: 0,
+      skipped: [],
+      lastError: null,
+      stale: false,
+      sessionId: null,
+      cookies: {},
+      transport: null,
+      session: null,
+      hb: null,
+      refreshTimer: null,
+      toolDisposers: [],
+      sseAttempts: 0,
+      pinging: false,
+    };
+  }
+
+  function persistedRecord(s) {
+    return {
+      name: s.name,
+      config: cloneJson(s.config),
+      prefix: s.prefix,
+    };
+  }
+
+  function restoreServerRecord(key, record) {
+    if (!record || typeof record !== 'object' || Array.isArray(record)) throw new Error('记录不是对象');
+    const name = typeof record.name === 'string' && record.name.trim() ? record.name.trim() : key;
+    const config = record.config;
+    if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('缺少 config');
+    if (!['stdio', 'http', 'openapi'].includes(config.transport)) throw new Error('transport 无效');
+    return createServer(name, cloneJson(config), record.prefix);
+  }
+
+  async function persistServer(s) {
+    await persistenceReady;
+    if (!persistedServers) throw persistenceError || new Error('DSH 持久化服务不可用');
+    await persistedServers.put(s.name, persistedRecord(s));
+  }
+
+  async function deletePersistedServer(name) {
+    await persistenceReady;
+    if (!persistedServers) throw persistenceError || new Error('DSH 持久化服务不可用');
+    await persistedServers.delete(name);
+  }
 
   function unregisterTools(s) {
     if (s.toolDisposers && s.toolDisposers.length) {
@@ -869,7 +943,8 @@
     return out;
   }
 
-  function addServer(args) {
+  async function addServer(args, options) {
+    const shouldPersist = !options || options.persist !== false;
     const name = typeof args.name === 'string' ? args.name.trim() : '';
     if (!name) return { ok: false, message: '服务器名称不能为空' };
     if (name.length > 60) return { ok: false, message: '服务器名称过长（最多 60 字符）' };
@@ -920,26 +995,29 @@
     if (typeof args.token === 'string' && args.token.trim()) cfg.headers.authorization = 'Bearer ' + args.token.trim();
     cfg.token = null;
     const prefix = sanitizeName(typeof args.prefix === 'string' && args.prefix ? args.prefix : name) || 'mcp';
-    const s = {
-      name, config: cfg, prefix,
-      status: 'configured', serverInfo: null, toolCount: 0, skipped: [],
-      lastError: null, stale: false, sessionId: null, cookies: {},
-      transport: null, session: null, hb: null, refreshTimer: null,
-      toolDisposers: [], sseAttempts: 0, pinging: false,
-    };
+    const s = createServer(name, cfg, prefix);
     servers.set(name, s);
+    if (shouldPersist) {
+      try {
+        await persistServer(s);
+      } catch (err) {
+        servers.delete(name);
+        return { ok: false, message: '服务器已暂存但持久化失败: ' + String((err && err.message) || err) };
+      }
+    }
     console.log('[mcp] 已添加服务器', name, '（' + normalizedTransport + '）');
     return { ok: true, message: '已保存服务器 "' + name + '"（' + (normalizedTransport === 'http' ? 'HTTP / SSE' : normalizedTransport) + '），使用 mcp_connect 连接' };
   }
 
   async function updateServer(name, args) {
+    await persistenceReady;
     const current = servers.get(name);
     if (!current) return { ok: false, message: '服务器不存在: ' + name };
     const wasConnected = current.status === 'connected';
     teardown(current);
     servers.delete(name);
     const payload = Object.assign({}, (args && typeof args === 'object') ? args : {}, { name });
-    const saved = addServer(payload);
+    const saved = await addServer(payload);
     if (!saved.ok) {
       current.status = 'configured';
       current.serverInfo = null;
@@ -955,15 +1033,46 @@
     return { ok: true, message: '服务器 "' + name + '" 配置已更新', detail: { reconnected: wasConnected } };
   }
 
-  function removeServer(name) {
+  async function removeServer(name) {
     const s = servers.get(name);
     if (!s) return { ok: false, message: '服务器不存在: ' + name };
+    try {
+      await deletePersistedServer(name);
+    } catch (err) {
+      return { ok: false, message: '移除失败，持久化删除失败: ' + String((err && err.message) || err) };
+    }
     teardown(s);
     servers.delete(name);
     return { ok: true, message: '已移除服务器 ' + name };
   }
 
-  function disconnectServer(name) {
+  async function initializePersistence() {
+    try {
+      const storageDomain = ctx.get('storageDomain');
+      if (!storageDomain || typeof storageDomain.open !== 'function') {
+        throw new Error('storageDomain 服务不可用');
+      }
+      persistedDomain = await storageDomain.open(MCP_STORAGE_SPEC);
+      persistedServers = persistedDomain.table('servers');
+      for (const [key, record] of persistedServers.entries()) {
+        try {
+          const server = restoreServerRecord(key, record);
+          if (!servers.has(server.name)) servers.set(server.name, server);
+        } catch (err) {
+          console.log('[mcp] 跳过无效的持久化服务器记录 ' + key + ':', String((err && err.message) || err));
+        }
+      }
+      console.log('[mcp] 已恢复', servers.size, '个持久化服务器配置');
+    } catch (err) {
+      persistenceError = err;
+      console.error('[mcp] MCP 配置持久化不可用:', String((err && err.message) || err));
+    }
+  }
+
+  persistenceReady = initializePersistence();
+
+  async function disconnectServer(name) {
+    await persistenceReady;
     const s = servers.get(name);
     if (!s) return { ok: false, message: '服务器不存在: ' + name };
     teardown(s);
@@ -1269,6 +1378,7 @@
   }
 
   async function connectServer(name) {
+    await persistenceReady;
     const s = servers.get(name);
     if (!s) return { ok: false, message: '服务器不存在: ' + name };
     if (s.status === 'connecting') return { ok: false, message: '服务器正在连接中' };
@@ -1302,6 +1412,7 @@
   }
 
   async function refreshServer(name) {
+    await persistenceReady;
     const s = servers.get(name);
     if (!s) return { ok: false, message: '服务器不存在: ' + name };
     if (s.status !== 'connected' || !s.session) return { ok: false, message: '服务器未连接，无法刷新' };
@@ -1457,6 +1568,7 @@
 
   defineMgmt('mcp_list', '列出所有已配置的 MCP 服务器及其状态（传输方式、连接状态、工具数量、错误信息）。', {}, [], async () => {
     try {
+      await persistenceReady;
       const serversList = listServers();
       return { ok: true, message: '共 ' + serversList.length + ' 个服务器', detail: serversList };
     } catch (err) { return { ok: false, message: String((err && err.message) || err) }; }
@@ -1464,7 +1576,10 @@
 
   // ================= Client RPC（管理面板） =================
   harness.handle('mcp_status', async () => {
-    try { return { servers: listServers() }; }
+    try {
+      await persistenceReady;
+      return { servers: listServers() };
+    }
     catch (err) { return { servers: [], error: String((err && err.message) || err) }; }
   });
   harness.handle('mcp_connect', async (a) => connectServer(a && typeof a.name === 'string' ? a.name : ''));
@@ -1481,7 +1596,7 @@
   });
 
   // ================= 生命周期清理 =================
-  ctx.effect(() => () => {
+  ctx.effect(() => async () => {
     for (const s of servers.values()) {
       try { teardown(s); } catch {}
     }
@@ -1489,6 +1604,10 @@
     if (bridge) { try { closeBridge(bridge); } catch {} }
     bridge = null;
     bridgePromise = null;
+    try {
+      await persistenceReady;
+      if (persistedDomain) await persistedDomain.close();
+    } catch {}
   });
 
   console.log('[mcp] MCP 管理器已启动（stdio / HTTP·SSE / OpenAPI）');

@@ -22,6 +22,7 @@ DeepSeek Harness (DSH) 的 MCP 服务器管理插件。支持 **STDIO** 本地�
 - **工具自动同步**：`tools/list` → 自动注册 `<前缀>_<工具名>`；收到 `notifications/tools/list_changed` 自动刷新。
 - **可靠性保证**：请求取消（`notifications/cancelled`）、HTTP / SSE 每 30s 心跳、超时与错误分级。
 - **双模管理**：既可通过自然语言管理工具（`mcp_add` / `mcp_list` / `mcp_connect` / `mcp_disconnect` / `mcp_refresh` / `mcp_remove`），也可通过设置页可视化面板。
+- **配置持久化**：MCP 服务器配置保存到 DSH 的本地 storage，重启 `dsh web` 后自动恢复（连接状态与已注册工具需重新建立）。
 
 ## 安装与使用
 
@@ -84,7 +85,7 @@ dsh web --dump-config | findstr /i "mcp-manager"
 
 ```js
 return {
-  inject: ['timer', 'subprocess', 'fs'],
+  inject: ['timer', 'subprocess', 'fs', 'storageDomain'],
   async apply(ctx) {
     const fs = ctx.fs;
     const target = await fs.resolve('C:\\path\\to\\impl.js', {});
