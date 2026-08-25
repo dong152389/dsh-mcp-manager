@@ -1,0 +1,30 @@
+{
+  "name": "dsh-mcp-manager",
+  "description": "DeepSeek Harness (DSH) 插件：管理 MCP 服务器，支持 stdio / SSE / Streamable HTTP 三种 MCP 传输及 OpenAPI 规范转工具，连接后自动将服务器工具注册为模型工具。",
+  "version": "0.1.0",
+  "license": "MIT",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib"
+  ],
+  "keywords": [
+    "cordis",
+    "dsh",
+    "mcp",
+    "model-context-protocol",
+    "openapi"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-tools": "^0.1.1-rc.2"
+  },
+  "scripts": {
+    "build:formal": "node scripts/build-formal.mjs",
+    "test:bridge": "node test/mock-server.js"
+  }
+}
