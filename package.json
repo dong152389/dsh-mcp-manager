@@ -36,7 +36,6 @@
     "@deepseek-ai/dsh-typert-protocol": "^0.1.1-rc.2"
   },
   "scripts": {
-    "build:formal": "node scripts/build-formal.mjs",
-    "test:bridge": "node test/mock-server.js"
+    "build:formal": "node scripts/build-formal.mjs"
   }
 }

@@ -157,11 +157,8 @@ dsh-mcp-manager/
 │   └── bridge.js       # Node HTTP 桥（子进程，NDJSON 协议，支持请求头/SSE 流/取消）
 ├── impl.js             # 动态插件版实现源码（正式版 Host 面由它生成）
 ├── cordis.patch.yml    # DSH bundle 挂载声明（dsh plugin 安装后自动应用）
-├── scripts/
-│   └── build-formal.mjs # impl.js → lib/index.js 转换脚本
-└── test/
-    ├── mock-server.js  # 本地 mock MCP 服务器（流式 HTTP + SSE + Set-Cookie）
-    └── test-*.jsonl    # 桥接测试用例
+└── scripts/
+    └── build-formal.mjs # impl.js → lib/index.js 转换脚本
 ```
 
 ## 工作原理
@@ -181,23 +178,11 @@ dsh-mcp-manager/
 
 Client 面（设置页面板）通过 `TypertRemoteService`（`@deepseek-ai/dsh-typert-protocol`）暴露 `mcpManager` Remote 服务，浏览器 bundle 经 `connection.rpc.call("/api", ...)` 与 Host 通信。
 
-## 开发与测试
+## 开发
 
 ```powershell
 # 构建正式插件到 lib/
 npm run build:formal
-
-# 启动本地 mock MCP 服务器
-npm run test:bridge
-```
-
-另开一个终端测试桥接层：
-
-```powershell
-# 在 mock 服务器运行的前提下
-Get-Content test/test-http.jsonl   | node lib/bridge.js
-Get-Content test/test-cookie.jsonl | node lib/bridge.js
-Get-Content test/test-sse.jsonl    | node lib/bridge.js
 ```
 
 ## 常见问题（Troubleshooting）
