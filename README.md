@@ -20,7 +20,7 @@ DeepSeek Harness (DSH) 的 MCP 服务器管理插件：支持 **stdio / SSE / St
 ```sh
 npm install dsh-mcp-manager
 # 或直接从 GitHub 安装：
-npm install github:<你的用户名>/dsh-mcp-manager
+npm install github:dong152389/dsh-mcp-manager
 ```
 
 在 DSH 的 `cordis.yml`（宿主组合或 agent preset）中添加一行：
