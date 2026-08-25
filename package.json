@@ -1,7 +1,7 @@
 {
   "name": "dsh-mcp-manager",
   "description": "DeepSeek Harness (DSH) 插件：管理 MCP 服务器，支持 stdio / SSE / Streamable HTTP 三种 MCP 传输及 OpenAPI 规范转工具，连接后自动将服务器工具注册为模型工具；设置页提供添加服务器表单。",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "MIT",
   "type": "module",
   "main": "lib/index.js",

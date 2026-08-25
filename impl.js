@@ -901,7 +901,7 @@
         const tool = harness.defineTool({
           name: d.name,
           description: d.description,
-          parameters: d.parameters,
+          parameters: toPropertyMap(d.parameters),
           output: {
             schema: { type: 'object', additionalProperties: true },
             render: (args, value) => [{ type: 'text', text: renderMcpResult(value) }],
@@ -1231,12 +1231,83 @@
     }
   }
 
+  // ================= 参数 Schema 转换（对齐 dsh-tools 的 value schema DSL） =================
+  // harness.defineTool / defineTool 的 parameters 必须是"隐式属性表"：每个键是一个 value schema 节点
+  // （{ type: 'string', required: true, ... }）。不能传完整的 JSON Schema 包装 { type:'object', properties }，
+  // 否则 properties 里的 type/properties/required 会被当成属性名，报
+  // "parameters.type must be a value schema object"。这里把 MCP/OpenAPI 的原始 schema 转为 DSL 形式。
+  function toPropertyMap(root) {
+    const out = {};
+    if (!root || typeof root !== 'object' || Array.isArray(root)) return out;
+    const props = (root.properties && typeof root.properties === 'object' && !Array.isArray(root.properties)) ? root.properties : {};
+    const required = new Set(Array.isArray(root.required) ? root.required.filter((x) => typeof x === 'string') : []);
+    for (const key of Object.keys(props)) {
+      const node = toValueNode(props[key], 0);
+      if (!node) continue;
+      if (required.has(key)) node.required = true;
+      out[key] = node;
+    }
+    return out;
+  }
+  function toValueNode(node, depth) {
+    if (depth > 12) return null;
+    if (!node || typeof node !== 'object' || Array.isArray(node)) return null;
+    const out = {};
+    for (const k of ['description', 'title', 'default', 'examples']) {
+      if (Object.prototype.hasOwnProperty.call(node, k)) out[k] = node[k];
+    }
+    if (Array.isArray(node.oneOf) && node.oneOf.length >= 2) {
+      const branches = [];
+      for (const b of node.oneOf) {
+        const c = toValueNode(b, depth + 1);
+        if (c) branches.push(c);
+      }
+      if (branches.length >= 2) { out.oneOf = branches; return out; }
+    }
+    let type = typeof node.type === 'string' ? node.type : undefined;
+    if (type === undefined && node.properties && typeof node.properties === 'object' && !Array.isArray(node.properties)) type = 'object';
+    if (type === 'object') {
+      out.type = 'object';
+      out.additionalProperties = (typeof node.additionalProperties === 'boolean') ? node.additionalProperties : true;
+      if (node.properties && typeof node.properties === 'object' && !Array.isArray(node.properties)) {
+        const properties = {};
+        const req = new Set(Array.isArray(node.required) ? node.required.filter((x) => typeof x === 'string') : []);
+        for (const key of Object.keys(node.properties)) {
+          const c = toValueNode(node.properties[key], depth + 1);
+          if (!c) continue;
+          if (req.has(key)) c.required = true;
+          properties[key] = c;
+        }
+        if (Object.keys(properties).length) out.properties = properties;
+      }
+      return out;
+    }
+    if (type === 'array') {
+      out.type = 'array';
+      if (node.items && typeof node.items === 'object' && !Array.isArray(node.items)) {
+        const c = toValueNode(node.items, depth + 1);
+        if (c) out.items = c;
+      }
+      return out;
+    }
+    if (['string', 'number', 'integer', 'boolean', 'null', 'json'].includes(type)) {
+      out.type = type;
+      if (Array.isArray(node.enum) && node.enum.length > 0) {
+        const e = node.enum.filter((v) => v === null || typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean');
+        if (e.length > 0) out.enum = e;
+      }
+      if (Object.prototype.hasOwnProperty.call(node, 'const')) out.const = node.const;
+      return out;
+    }
+    return null;
+  }
+
   // ================= 管理工具（模型可见） =================
   function defineMgmt(name, description, properties, required, fn) {
     const tool = harness.defineTool({
       name,
       description,
-      parameters: { type: 'object', properties, required: required || [] },
+      parameters: toPropertyMap({ type: 'object', properties, required: required || [] }),
       output: {
         schema: { type: 'object', additionalProperties: true },
         render: (args, value) => [{ type: 'text', text: renderResult(value) }],

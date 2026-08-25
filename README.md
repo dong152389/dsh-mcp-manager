@@ -31,7 +31,15 @@ npm install github:dong152389/dsh-mcp-manager
 dsh plugin --profile web add dsh-mcp-manager
 #    本地开发可直接加本地路径（pnpm link，改代码即时生效）：
 #    dsh plugin --profile web add "C:\path\to\dsh-mcp-manager"
+```
 
+> 想直接用 `npm install github:dong152389/dsh-mcp-manager` 也可以，但**必须在 profile 目录里执行**
+> （`cd "$DSH_HOME/profiles/web" && npm install github:dong152389/dsh-mcp-manager`），
+> 效果与 `dsh plugin --profile web add` 相同。不要装到别处——插件要在 profile 的
+> `node_modules` 里才能被 DSH 加载器解析到（其 peer 依赖 `@deepseek-ai/dsh-tools` 等
+> 由 profile 提供）。
+
+```sh
 # 2. 在组合补丁文件 $DSH_HOME/cordis.patch.yml 中注册插件行。
 #    注意：新增行必须用 insert 列表（组合中不存在该 id，覆盖行写法会报
 #    "entry ... not found"）：
@@ -43,6 +51,15 @@ dsh plugin --profile web add dsh-mcp-manager
 ```
 
 > 宿主组合文件是 **`cordis.patch.yml`**（`$DSH_HOME/cordis.patch.yml` 对默认 profile 生效；`profiles/<name>/cordis.patch.yml` 仅对该 profile 生效），**不是** `cordis.yml`——`cordis.yml` 是各 profile 的组合根（一般保持为空），patch 层负责增改行。
+
+### 常见问题（Troubleshooting）
+
+| 现象 | 原因与解决 |
+| --- | --- |
+| `dsh web` 报 `unsupported JSON schema: parameters.type must be a value schema object` | 插件版本过旧（v0.1.0 的 schema 转换 bug）。升级：`dsh plugin --profile web add dsh-mcp-manager@latest`（或重新 `npm install github:dong152389/dsh-mcp-manager`） |
+| `dsh web` 报 `Cannot find package '@deepseek-ai/dsh-tools'` | 包装到了 profile 之外（peer 依赖解析不到）。按上面第 1 步用 `dsh plugin --profile web add` 重装 |
+| 报 `entry "mcp-manager" not found` | patch 里用了覆盖行写法，新增行必须用 `- insert:` 列表（见上） |
+| 设置里没有「MCP 服务器」页面 | 插件 Host 面已加载但 Client 面未生效：检查是否重启过 DSH；仍无效请确认包版本 ≥ 0.1.0（含 client 面） |
 
 ### 方式二：DSH 动态插件（快速试用）
 
