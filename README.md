@@ -12,6 +12,7 @@ DeepSeek Harness (DSH) 的 MCP 服务器管理插件：支持 **stdio / SSE / St
 - **工具自动同步**：`tools/list` → 自动注册 `<前缀>_<工具名>`；收到 `notifications/tools/list_changed` 自动刷新
 - **可靠性**：请求取消（`notifications/cancelled`）、心跳（SSE/HTTP 每 30s ping）、超时与错误分级
 - **管理工具**（注册为模型工具）：`mcp_add` / `mcp_list` / `mcp_connect` / `mcp_disconnect` / `mcp_refresh` / `mcp_remove`
+- **设置页管理面板**（正式插件 client 面）：设置 →「MCP 服务器」，提供添加服务器表单（名称/注释、四种类型的动态配置项、请求头/环境变量键值列表、安全类型、Cookie 会话开关）与服务器状态列表
 
 ## 安装
 
@@ -23,12 +24,25 @@ npm install dsh-mcp-manager
 npm install github:dong152389/dsh-mcp-manager
 ```
 
-在 DSH 的 `cordis.yml`（宿主组合或 agent preset）中添加一行：
+**安装到 DSH**（两步 + 重启）：
 
-```yaml
-- id: mcp-manager
-  name: dsh-mcp-manager
+```sh
+# 1. 把包装进 DSH 的 profile（web profile 为例）
+dsh plugin --profile web add dsh-mcp-manager
+#    本地开发可直接加本地路径（pnpm link，改代码即时生效）：
+#    dsh plugin --profile web add "C:\path\to\dsh-mcp-manager"
+
+# 2. 在组合补丁文件 $DSH_HOME/cordis.patch.yml 中注册插件行。
+#    注意：新增行必须用 insert 列表（组合中不存在该 id，覆盖行写法会报
+#    "entry ... not found"）：
+#    - insert:
+#        - id: mcp-manager
+#          name: dsh-mcp-manager
+
+# 3. 重启 DSH 生效
 ```
+
+> 宿主组合文件是 **`cordis.patch.yml`**（`$DSH_HOME/cordis.patch.yml` 对默认 profile 生效；`profiles/<name>/cordis.patch.yml` 仅对该 profile 生效），**不是** `cordis.yml`——`cordis.yml` 是各 profile 的组合根（一般保持为空），patch 层负责增改行。
 
 ### 方式二：DSH 动态插件（快速试用）
 
@@ -79,9 +93,10 @@ OpenAPI 服务器还支持 `specText`（JSON 模式文本）、`specFile`（本�
 ```
 dsh-mcp-manager/
 ├── lib/
-│   ├── index.js        # 正式插件（ESM，导出 name/inject/apply）
+│   ├── index.js        # 正式插件 Host 面（ESM，导出 name/inject/apply）
+│   ├── client.js       # 正式插件 Client 面（lazy-CJS bundle，设置页面板）
 │   └── bridge.js       # Node HTTP 桥（子进程，NDJSON 协议，支持请求头/SSE 流/取消）
-├── impl.js             # 动态插件版实现源码（正式版由它生成）
+├── impl.js             # 动态插件版实现源码（正式版 Host 面由它生成）
 ├── scripts/
 │   └── build-formal.mjs # impl.js → lib/index.js 转换脚本
 └── test/
@@ -104,9 +119,10 @@ dsh-mcp-manager/
 
 stdio 传输则直接通过 DSH 的 `subprocess` 服务派生 MCP 进程，NDJSON 帧与 JSON-RPC 在同一套会话逻辑中处理。
 
+Client 面（设置页面板）通过 `TypertRemoteService`（`@deepseek-ai/dsh-typert-protocol`）暴露 `mcpManager` Remote 服务，浏览器 bundle 经 `connection.rpc.call("/api", ...)` 与 Host 通信（纯 JS 以模拟 decorator context 的方式写入 `@Remote` 标记，走 Gateway 的 SRC 路由）。
+
 ## Roadmap
 
-- [ ] Client 管理面板（需复刻 DSH 的 `clientBundle` 构建链，`dsh.client` 清单 + lazy-CJS bundle）
 - [ ] 服务器配置持久化（当前为进程内内存）
 - [ ] MCP 资源（resources/list）与提示（prompts/list）同步
 
