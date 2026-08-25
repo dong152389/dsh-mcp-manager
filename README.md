@@ -60,6 +60,7 @@ dsh plugin --profile web add dsh-mcp-manager
 | `dsh web` 报 `Cannot find package '@deepseek-ai/dsh-tools'` | 包装到了 profile 之外（peer 依赖解析不到）。按上面第 1 步用 `dsh plugin --profile web add` 重装 |
 | 报 `entry "mcp-manager" not found` | patch 里用了覆盖行写法，新增行必须用 `- insert:` 列表（见上） |
 | 设置里没有「MCP 服务器」页面 | 插件 Host 面已加载但 Client 面未生效：检查是否重启过 DSH；仍无效请确认包版本 ≥ 0.1.0（含 client 面） |
+| 设置页存在但列表报 `transport failure for /api/mcpManager/list: HTTP 404` | 插件版本过旧（v0.1.0 的 Remote 服务用 SRC 标记注册，要求与网关共享同一份 `@deepseek-ai/dsh-typert-protocol` 模块实例，第三方安装位置无法保证）。升级到 ≥ 0.1.1：改用 `ctx.typert.register()` 严格描述符注册，与安装位置无关 |
 
 ### 方式二：DSH 动态插件（快速试用）
 

@@ -59,6 +59,33 @@ const remoteBlock = `  // ================= Remote 服务（client 面板通信�
   }
   new McpManagerService();
 
+  // 严格模式注册：不依赖模块级 markers（SRC 模式要求与网关共享同一份
+  // dsh-typert-protocol 模块实例，第三方插件无法保证），直接向 typert
+  // 注册完整描述符；网关的 resolveDescriptor 优先使用严格定义。
+  const typert = ctx.typert;
+  if (typert && typeof typert.register === 'function') {
+    try {
+      const wire = (name) => ({ name, wire: name, source: 'json', codec: { mode: 'src-json' } });
+      typert.register({
+        package: 'dsh-mcp-manager',
+        face: 'host',
+        model: {},
+        schemas: [],
+        invocations: [
+          { id: 'dsh-mcp-manager#mcpManager/list', service: 'mcpManager', namespace: 'mcpManager', method: 'list', invocation: { kind: 'direct' }, parameters: [], result: { mode: 'src-json' } },
+          { id: 'dsh-mcp-manager#mcpManager/save', service: 'mcpManager', namespace: 'mcpManager', method: 'save', invocation: { kind: 'direct' }, parameters: [wire('payload')], result: { mode: 'src-json' } },
+          { id: 'dsh-mcp-manager#mcpManager/connect', service: 'mcpManager', namespace: 'mcpManager', method: 'connect', invocation: { kind: 'direct' }, parameters: [wire('serverName')], result: { mode: 'src-json' } },
+          { id: 'dsh-mcp-manager#mcpManager/disconnect', service: 'mcpManager', namespace: 'mcpManager', method: 'disconnect', invocation: { kind: 'direct' }, parameters: [wire('serverName')], result: { mode: 'src-json' } },
+          { id: 'dsh-mcp-manager#mcpManager/remove', service: 'mcpManager', namespace: 'mcpManager', method: 'remove', invocation: { kind: 'direct' }, parameters: [wire('serverName')], result: { mode: 'src-json' } },
+          { id: 'dsh-mcp-manager#mcpManager/refresh', service: 'mcpManager', namespace: 'mcpManager', method: 'refresh', invocation: { kind: 'direct' }, parameters: [wire('serverName')], result: { mode: 'src-json' } },
+        ],
+      });
+      console.log('[mcp] Remote 服务已严格注册到 typert 网关');
+    } catch (err) {
+      console.log('[mcp] Remote 严格注册失败（回退 SRC 模式）:', String((err && err.message) || err));
+    }
+  }
+
 `;
 out = out.slice(0, rpcStart) + remoteBlock + out.slice(cleanupIdx);
 
@@ -99,7 +126,7 @@ function markRemoteMethods(service) {
 }
 
 export const name = 'dsh-mcp-manager';
-export const inject = ['timer', 'subprocess', 'fs', 'tools'];
+export const inject = ['timer', 'subprocess', 'fs', 'tools', 'typert'];
 `;
 out += tail;
 
