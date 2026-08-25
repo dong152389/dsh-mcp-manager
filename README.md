@@ -1,3 +1,6 @@
+# 还在开发中，暂有些问题
+
+
 # dsh-mcp-manager
 
 DeepSeek Harness (DSH) 的 MCP 服务器管理插件：支持 **stdio / SSE / Streamable HTTP** 三种 MCP 传输，以及将 **OpenAPI** 规范转换为模型工具。连接服务器后，其工具会自动注册为模型可调用的工具。
