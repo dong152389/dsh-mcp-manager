@@ -1639,5 +1639,5 @@
     } catch {}
   });
 
-  console.log('[mcp] MCP 管理器已启动（stdio / HTTP·SSE / OpenAPI）');
+  console.log('[mcp] MCP 管理器已启动（Stdio / HTTP·SSE / OpenAPI）');
 };
