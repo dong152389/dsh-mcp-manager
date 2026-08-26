@@ -26,6 +26,13 @@ DeepSeek Harness (DSH) 的 MCP 服务器管理插件。支持 **STDIO** 本地�
 
 ## 安装与使用
 
+> 当前dsh版本
+>
+> ```
+> ❯ dsh --version
+> 0.1.1-rc.2
+> ```
+
 ### 方式 A：从 GitHub 安装
 
 无需本地克隆，直接在 DSH profile 中安装：
@@ -60,12 +67,6 @@ dsh plugin --profile web add link:.
 - 本地开发推荐使用 `link:` 安装，修改源码后运行 `npm run build:formal` 重新生成 `lib/index.js`，再重启 `dsh web`。
 - 如果之后移动了源码目录，需要重新执行一次 `dsh plugin --profile web add link:<新路径>`；若提示已存在/冲突，可先 `dsh plugin --profile web remove dsh-mcp-manager` 再重新 add。
 
-### 方式 C：发布到 npm 后安装
-
-```powershell
-dsh plugin --profile web add dsh-mcp-manager
-```
-
 ### 验证安装
 
 安装并重启 `dsh web` 后，可以确认插件是否进入配置树：
@@ -75,41 +76,6 @@ dsh web --dump-config | findstr /i "mcp-manager"
 ```
 
 如果能看到 `mcp-manager` 行，说明插件已挂载；接着进入「设置 → MCP 服务器」即可管理服务器。
-
-
-### 可选：DSH 动态插件方式
-
-普通用户不需要这一步。只有在不安装正式 npm 插件、需要直接调试 `impl.js` 时才使用动态插件方式。
-
-在 DSH 会话中创建动态 Cordis 插件，`code.host` 使用以下加载器（需要先把本仓库的 `impl.js` 与 `lib/bridge.js` 放到本机固定路径，并修改加载器中的绝对路径）：
-
-```js
-return {
-  inject: ['timer', 'subprocess', 'fs', 'storageDomain'],
-  async apply(ctx) {
-    const fs = ctx.fs;
-    const target = await fs.resolve('C:\\path\\to\\impl.js', {});
-    const source = await fs.readText(target);
-    const init = eval('(' + source.trim().replace(/;+\s*$/, '') + ')');
-    return init(ctx, harness);
-  },
-};
-```
-
-> 动态插件版与正式版共用同一份实现源码（`impl.js`）。正式版通过 `scripts/build-formal.mjs` 从 `impl.js` 生成 `lib/index.js`；改动 `impl.js` 后需运行 `npm run build:formal`。
-
-## 使用示例
-
-添加服务器后连接，服务器工具即注册为模型工具：
-
-```
-mcp_add      { name: "my-fs", transport: "stdio", command: "npx", args: ["-y", "@modelcontextprotocol/server-filesystem", "C:\\workspace"] }
-mcp_add      { name: "my-remote", transport: "http", url: "https://example.com/mcp", headers: {"Authorization": "Bearer sk-..."} }
-mcp_add      { name: "petstore", transport: "openapi", specUrl: "https://petstore.swagger.io/v2/swagger.json", baseUrl: "https://petstore.swagger.io/v2", securityType: "apiKey", apiKeyName: "api_key", apiKeyValue: "..." }
-mcp_connect  { name: "my-remote" }   # 之后 my_remote_xxx 工具可直接调用
-```
-
-OpenAPI 服务器还支持 `specText`（JSON 模式文本）、`specFile`（本地文件）、`cookieSession`（保存 Set-Cookie 并自动携带）。
 
 ### mcp_add 主要参数
 
