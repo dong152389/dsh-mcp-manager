@@ -9,11 +9,16 @@
   // MCP 配置属于非会话数据，使用 DSH 的 storage-domain + JSON backend 持久化。
   // 动态插件环境不能直接 import zod，因此这里提供一个透传 schema；实际的
   // 记录结构会在恢复时由 restoreServerRecord 做校验。
+  const passThroughSchema = {
+    parse(value) { return value; },
+    safeParse(value) { return { success: true, data: value }; },
+  };
   const MCP_STORAGE_SPEC = {
     name: 'dsh_mcp_manager',
     version: 1,
     tables: {
       servers: {
+        valueSchema: passThroughSchema,
         parse(value) { return value; },
         safeParse(value) { return { success: true, data: value }; },
       },
@@ -872,6 +877,8 @@
       name: s.name,
       config: cloneJson(s.config),
       prefix: s.prefix,
+      connected: s.status === 'connected' || s.status === 'connecting',
+      autoConnect: s.autoConnect !== false,
     };
   }
 
@@ -881,7 +888,9 @@
     const config = record.config;
     if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('缺少 config');
     if (!['stdio', 'http', 'openapi'].includes(config.transport)) throw new Error('transport 无效');
-    return createServer(name, cloneJson(config), record.prefix);
+    const s = createServer(name, cloneJson(config), record.prefix);
+    if (record.autoConnect === false) s.autoConnect = false;
+    return s;
   }
 
   async function persistServer(s) {
@@ -1057,7 +1066,14 @@
       for (const [key, record] of persistedServers.entries()) {
         try {
           const server = restoreServerRecord(key, record);
-          if (!servers.has(server.name)) servers.set(server.name, server);
+          if (!servers.has(server.name)) {
+            servers.set(server.name, server);
+            if (record.connected !== false && record.autoConnect !== false) {
+              connectServer(server.name).catch((err) => {
+                console.log('[mcp] 启动时自动连接服务器 ' + server.name + ' 失败:', String((err && err.message) || err));
+              });
+            }
+          }
         } catch (err) {
           console.log('[mcp] 跳过无效的持久化服务器记录 ' + key + ':', String((err && err.message) || err));
         }
@@ -1079,6 +1095,7 @@
     s.status = 'configured';
     s.serverInfo = null;
     s.stale = false;
+    try { await persistServer(s); } catch {}
     return { ok: true, message: '已断开服务器 ' + name };
   }
 
@@ -1397,6 +1414,7 @@
     s.stale = false;
     try {
       await doConnect(s);
+      try { await persistServer(s); } catch {}
       return {
         ok: true,
         message: '服务器 ' + name + ' 已连接（' + (s.config.transport === 'http' ? 'HTTP / SSE' : s.config.transport) + '）',

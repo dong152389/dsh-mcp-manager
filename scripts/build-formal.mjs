@@ -39,6 +39,7 @@ const remoteBlock = `  // ================= Remote 服务（client 面板通信�
       markRemoteMethods(this);
     }
     async list() {
+      await persistenceReady;
       return { servers: listServers() };
     }
     async save(payload) {
