@@ -7,7 +7,7 @@
   <em>A modern visual dashboard & control panel for managing Model Context Protocol (MCP) servers and OpenAPI tools in DeepSeek Harness.</em>
 </p>
 
-[![Version](https://img.shields.io/badge/version-0.1.1-3b82f6.svg?style=flat-square)](package.json)
+[![Version](https://img.shields.io/badge/version-0.1.2-3b82f6.svg?style=flat-square)](package.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-10b981.svg?style=flat-square)](LICENSE)
 [![DSH Compatibility](https://img.shields.io/badge/DSH-%E2%89%A50.1.1--rc.2-6366f1.svg?style=flat-square)](https://github.com/deepseek-ai)
 [![Cordis](https://img.shields.io/badge/Cordis-v4.x-f59e0b.svg?style=flat-square)](https://cordis.moe/)
@@ -116,7 +116,7 @@ Model Context Protocol (MCP) 为大语言模型接入外部工具和知识源提
 | 依赖项 | 建议版本 | 说明 |
 | :--- | :--- | :--- |
 | **Node.js** | `>= 18.0.0` | ESM 运行环境与 Child Process 支持 |
-| **DeepSeek Harness (DSH)** | `>= 0.1.1-rc.2` | 具备 Cordis 4.x、Typert RPC 与 Tools 注入能力 |
+| **DeepSeek Harness (DSH)** | `>= 0.1.1-rc.2 < 0.2.0` | 具备 Cordis 4.x、Typert RPC 与 Tools 注入能力 |
 
 通过控制台检查当前环境中的 DSH 版本：
 
@@ -124,6 +124,19 @@ Model Context Protocol (MCP) 为大语言模型接入外部工具和知识源提
 dsh --version
 # 输出示例: 0.1.1-rc.2
 ```
+
+### 🔐 权限、依赖与失败边界
+
+本插件是一个 `R2` 高权限 DSH Web Bundle：它管理用户主动配置的 MCP 服务，并把远端或本地服务工具注册到 DSH。它不修改 DSH 核心、官方插件清单或 Profile 配置；Profile 安装、启动、卸载和回滚仍由 DSH 官方 CLI 负责。一次性 Profile 验收记录见 [`docs/dsh-profile-evidence.md`](docs/dsh-profile-evidence.md)，完整权限矩阵见 [`SECURITY.md`](SECURITY.md)。
+
+| 能力 | 实际范围 |
+| :--- | :--- |
+| 文件 | 通过 DSH `fs` 读取用户指定的本地 OpenAPI 规范；通过 `storageDomain` 持久化 MCP 配置。不会写入 DSH 核心或官方 Profile 文件。 |
+| 命令 | 通过 DSH `subprocess` 启动用户配置的 STDIO MCP 可执行文件，以及插件自有 Node HTTP Bridge；使用参数数组，不接受 shell 字符串。用户配置的命令仍可能产生任意本地进程权限。 |
+| 网络 | 可访问用户配置的 HTTP / SSE / OpenAPI URL；网络范围不是固定白名单，连接失败、超时和 SSE 断线会返回错误或触发有限重连。 |
+| 凭据 | 支持并持久化用户主动提供的 Bearer、Basic、API Key、请求头和 Cookie；不会主动收集其他凭据或把配置发送到本项目服务。 |
+| 外部依赖 | DSH 的 `subprocess`、`fs`、`tools`、`typert`、`storageDomain` 服务；Node.js；用户自行提供的 MCP 可执行文件和远端 MCP/OpenAPI 服务。 |
+| 失败边界 | 无效配置、非法 Schema、进程退出、连接超时、网络断开、鉴权失败和工具注册失败都会单独报告；未连接的服务器不会注册工具，删除/断开会清理已注册工具。 |
 
 ---
 
@@ -300,6 +313,11 @@ dsh-mcp-manager/
 │   ├── index.js              # [构建产物] Host 端正式入口（ESM）
 │   ├── client.js             # [构建产物] Client 浏览器端懒加载 UI Bundle
 │   └── bridge.js             # [独立桥接] Node HTTP/SSE 流式子进程代理桥
+├── SECURITY.md               # 权限矩阵、外部依赖与非目标
+├── docs/
+│   └── dsh-profile-evidence.md # 一次性 Profile 安装/启动/卸载证据
+├── test/
+│   └── contract.test.mjs      # manifest、Patch 与产物契约测试
 └── README.md                 # 项目使用与技术说明文档
 ```
 
