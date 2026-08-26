@@ -910,6 +910,8 @@
       for (const d of s.toolDisposers) { try { d(); } catch {} }
       s.toolDisposers = [];
     }
+    s.tools = [];
+    s.toolCount = 0;
   }
   function teardown(s) {
     if (s.refreshTimer) { try { s.refreshTimer(); } catch {} s.refreshTimer = null; }
@@ -929,6 +931,7 @@
         status: s.status,
         serverInfo: s.serverInfo || null,
         toolCount: s.toolCount || 0,
+        tools: (s.tools && Array.isArray(s.tools)) ? s.tools : [],
         stale: !!s.stale,
         lastError: s.lastError || null,
         editable: {
@@ -1103,6 +1106,7 @@
     unregisterTools(s);
     const disposers = [];
     const skipped = [];
+    const registeredTools = [];
     for (const d of defs) {
       try {
         const tool = harness.defineTool({
@@ -1117,12 +1121,19 @@
           execute: d.execute,
         });
         disposers.push(harness.registerTool(ctx, tool));
+        registeredTools.push({
+          name: d.name,
+          description: d.description,
+          parameters: d.parameters || null,
+        });
       } catch (err) {
         skipped.push(d.name + '（' + String((err && err.message) || err) + '）');
       }
     }
     s.toolDisposers = disposers;
-    return { count: disposers.length, skipped };
+    s.tools = registeredTools;
+    s.toolCount = registeredTools.length;
+    return { count: disposers.length, skipped, tools: registeredTools };
   }
 
   async function syncTools(s) {
