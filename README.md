@@ -1,3 +1,5 @@
+[ERROR] - (starship::print): Under a 'dumb' terminal (TERM=dumb).
+
 <div align="center">
 
 # 🔌 dsh-mcp-manager
@@ -85,7 +87,7 @@ Model Context Protocol (MCP) 为大语言模型接入外部工具和知识源提
   - 支持会话级工作目录配置（`cwd`）与独立环境变量注入（`env`），原生支持请求取消广播（`notifications/cancelled`）。
 - **Streamable HTTP & 经典 SSE**：
   - **统一网络流式协议**：同时支持现代 Streamable HTTP 协议（`Mcp-Session-Id` 会话跟踪、POST 通信、`202 + Location` 轮询）与经典 SSE 规范（GET `/sse` 挂载端点广播）。
-  - **自动协商与恢复**：内置自动回退协商机制、网络波动断线重连以及每 30 秒一次的心跳健康检查。
+  - **自动协商与恢复**：内置自动回退协商机制、网络波动断线重连以及每 30 秒一次的心跳健康检查；锁屏、休眠唤醒或上游重启后会持续以指数退避方式恢复连接。
 - **OpenAPI 智能工具转换器**：
   - 直接读取 OpenAPI 3.0 / 3.1 或 Swagger 2.0 规范（支持线上 URL、本地文件或 YAML / JSON 文本）。
   - 智能解析 `$ref` 模式，将所有 `paths` 接口原子化映射并编译为严格的 DSH 对话工具。
@@ -133,7 +135,7 @@ dsh --version
 | :--- | :--- |
 | 文件 | 通过 DSH `fs` 读取用户指定的本地 OpenAPI 规范；通过 `storageDomain` 持久化 MCP 配置。不会写入 DSH 核心或官方 Profile 文件。 |
 | 命令 | 通过 DSH `subprocess` 启动用户配置的 STDIO MCP 可执行文件，以及插件自有 Node HTTP Bridge；使用参数数组，不接受 shell 字符串。用户配置的命令仍可能产生任意本地进程权限。 |
-| 网络 | 可访问用户配置的 HTTP / SSE / OpenAPI URL；网络范围不是固定白名单，连接失败、超时和 SSE 断线会返回错误或触发有限重连。 |
+| 网络 | 可访问用户配置的 HTTP / SSE / OpenAPI URL；网络范围不是固定白名单，连接失败、超时和 SSE 断线会返回错误或触发指数退避重连。 |
 | 凭据 | 支持并持久化用户主动提供的 Bearer、Basic、API Key、请求头和 Cookie；不会主动收集其他凭据或把配置发送到本项目服务。 |
 | 外部依赖 | DSH 的 `subprocess`、`fs`、`tools`、`typert`、`storageDomain` 服务；Node.js；用户自行提供的 MCP 可执行文件和远端 MCP/OpenAPI 服务。 |
 | 失败边界 | 无效配置、非法 Schema、进程退出、连接超时、网络断开、鉴权失败和工具注册失败都会单独报告；未连接的服务器不会注册工具，删除/断开会清理已注册工具。 |
@@ -403,3 +405,4 @@ npm run build:formal
 ## 📄 License
 
 本项目基于 [MIT License](LICENSE) 协议开源。
+

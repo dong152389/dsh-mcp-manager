@@ -1,3 +1,5 @@
+[ERROR] - (starship::print): Under a 'dumb' terminal (TERM=dumb).
+
 // DSH MCP Manager - Host implementation.
 // Loaded by the plugin loader (code.host) via fs.readText + eval. Signature: (ctx, harness) => void
 (ctx, harness) => {
@@ -787,9 +789,9 @@
     }
     return {
       get closed() { return closed; },
-      async request(method, params, opts) {
+      request(method, params, opts) {
         opts = opts || {};
-        if (closed) throw new Error('MCP 会话已断开');
+        if (closed) return Promise.reject(new Error('MCP 会话已断开'));
         const id = ++seq;
         const msg = { jsonrpc: '2.0', id, method, params };
         const timeoutMs = opts.timeoutMs || 60000;
@@ -816,12 +818,20 @@
           if (opts.signal.aborted) onAbort();
           else opts.signal.addEventListener('abort', onAbort, { once: true });
         }
-        try {
-          const rpc = await transport.send(msg, { timeoutMs, signal: opts.signal });
-          if (rpc !== null && rpc !== undefined) handleMessage(rpc);
-        } catch (err) {
-          const e = pending.get(id);
-          if (e) { pending.delete(id); if (e.timer) e.timer(); e.reject(err); }
+        // 不能在这里 await transport.send：HTTP/SSE 网络断开时 transport.send
+        // 可能一直挂起，导致上面的超时拒绝无法传给调用方，进而变成未处理异常。
+        // 请求 Promise 立即返回，发送和响应处理在后台完成；超时后迟到的响应会被
+        // handleMessage 忽略，连接健康检查则可以正常触发重连。
+        if (!opts.signal || !opts.signal.aborted) {
+          Promise.resolve()
+            .then(() => transport.send(msg, { timeoutMs, signal: opts.signal }))
+            .then((rpc) => {
+              if (rpc !== null && rpc !== undefined) handleMessage(rpc);
+            })
+            .catch((err) => {
+              const e = pending.get(id);
+              if (e) { pending.delete(id); if (e.timer) e.timer(); e.reject(err); }
+            });
         }
         return promise;
       },
@@ -869,6 +879,9 @@
       toolDisposers: [],
       sseAttempts: 0,
       pinging: false,
+      reconnectTimer: null,
+      reconnectPending: false,
+      connectionId: 0,
     };
   }
 
@@ -913,12 +926,26 @@
     s.tools = [];
     s.toolCount = 0;
   }
-  function teardown(s) {
+  function disposeActiveConnection(s) {
     if (s.refreshTimer) { try { s.refreshTimer(); } catch {} s.refreshTimer = null; }
     if (s.hb) { try { s.hb(); } catch {} s.hb = null; }
+    s.pinging = false;
     unregisterTools(s);
     if (s.session) { try { s.session.dispose(); } catch {} s.session = null; }
     if (s.transport) { try { s.transport.close(); } catch {} s.transport = null; }
+  }
+  function clearReconnectTimer(s) {
+    if (s.reconnectTimer) { try { s.reconnectTimer(); } catch {} s.reconnectTimer = null; }
+  }
+  function cancelReconnect(s) {
+    clearReconnectTimer(s);
+    s.reconnectPending = false;
+    s.sseAttempts = 0;
+  }
+  function teardown(s) {
+    cancelReconnect(s);
+    s.connectionId = (s.connectionId || 0) + 1;
+    disposeActiveConnection(s);
   }
   function listServers() {
     const out = [];
@@ -1178,33 +1205,60 @@
     if (s.config.transport !== 'sse' && s.config.transport !== 'http') return;
     s.hb = ctx.interval(() => {
       if (s.status !== 'connected' || !s.session || s.session.closed || s.pinging) return;
+      const connectionId = s.connectionId;
+      const session = s.session;
       s.pinging = true;
-      s.session.request('ping', {}, { timeoutMs: 10000 })
-        .then(() => { s.stale = false; })
-        .catch(() => { s.stale = true; })
-        .then(() => { s.pinging = false; });
+      session.request('ping', {}, { timeoutMs: 30000 })
+        .then(() => {
+          if (s.connectionId === connectionId && s.session === session) s.stale = false;
+        })
+        .catch((err) => {
+          if (s.connectionId !== connectionId || s.session !== session) return;
+          s.stale = true;
+          s.lastError = '心跳失败: ' + String((err && err.message) || err);
+          scheduleReconnect(s, err, connectionId);
+        })
+        .finally(() => {
+          if (s.connectionId === connectionId && s.session === session) s.pinging = false;
+        });
     }, 30000);
   }
 
-  function scheduleSseReconnect(s, err) {
-    if (s.status !== 'connected') return;
+  function scheduleReconnect(s, err, connectionId) {
+    if (connectionId !== undefined && s.connectionId !== connectionId) return;
+    if (s.status !== 'connected' && s.status !== 'connecting' && s.status !== 'error') return;
+    if (s.reconnectTimer) return;
+    s.reconnectPending = true;
     s.sseAttempts = (s.sseAttempts || 0) + 1;
-    if (s.sseAttempts > 3) {
-      s.status = 'error';
-      s.lastError = '连接断开且重连失败: ' + String((err && err.message) || err);
-      return;
-    }
-    const delay = 1500 * s.sseAttempts;
+    const delay = Math.min(30000, 1500 * Math.pow(2, Math.min(s.sseAttempts - 1, 5)));
     console.log('[mcp:' + s.name + '] 连接断开，' + delay + 'ms 后重连（第 ' + s.sseAttempts + ' 次）');
-    ctx.timeout(() => {
-      if (s.status !== 'connected') return;
+    s.reconnectTimer = ctx.timeout(() => {
+      s.reconnectTimer = null;
+      if (!s.reconnectPending) return;
+      if (connectionId !== undefined && s.connectionId !== connectionId) return;
+      if (s.status !== 'connected' && s.status !== 'connecting' && s.status !== 'error') return;
       s.status = 'connecting';
       s.lastError = null;
+      // 锁屏、休眠或上游重启后，原 session 很可能已经失效；用新的 MCP
+      // 初始化建立会话，避免每次重连都带着旧 sessionId 失败。
+      s.sessionId = null;
       doConnect(s).then(() => {
-        s.sseAttempts = 0;
+        if (!s.reconnectPending) return;
+        if (!s.reconnectTimer) {
+          s.reconnectPending = false;
+          s.sseAttempts = 0;
+        }
+        persistServer(s).catch(() => {});
       }).catch((e) => {
+        if (!s.reconnectPending) return;
+        // doConnect 已经创建过的新连接可能只完成了一半，先使其回调失效
+        // 再清理，随后继续走退避重试，而不是停在 error 状态。
+        clearReconnectTimer(s);
+        s.connectionId = (s.connectionId || 0) + 1;
+        disposeActiveConnection(s);
         s.status = 'error';
         s.lastError = '重连失败: ' + String((e && e.message) || e);
+        scheduleReconnect(s, e, s.connectionId);
       });
     }, delay);
   }
@@ -1339,11 +1393,10 @@
   }
 
   async function doConnect(s) {
-    unregisterTools(s);
-    if (s.transport) { try { s.transport.close(); } catch {} s.transport = null; }
-    if (s.session) { try { s.session.dispose(); } catch {} s.session = null; }
-    if (s.hb) { try { s.hb(); } catch {} s.hb = null; }
-    s.sseAttempts = 0;
+    const connectionId = (s.connectionId || 0) + 1;
+    s.connectionId = connectionId;
+    clearReconnectTimer(s);
+    disposeActiveConnection(s);
     s.cookies = {};
     s.stale = false;
 
@@ -1371,7 +1424,12 @@
     await transport.start();
     const session = createSession(s.name, transport, {
       onToolsChanged: () => scheduleToolRefresh(s),
-      onStreamEnd: (err) => { if (s.config.transport === 'sse' || s.config.transport === 'http') scheduleSseReconnect(s, err); },
+      onStreamEnd: (err) => {
+        if ((s.config.transport === 'sse' || s.config.transport === 'http')
+          && s.connectionId === connectionId && s.session === session) {
+          scheduleReconnect(s, err, connectionId);
+        }
+      },
     });
     s.transport = transport;
     s.session = session;
@@ -1415,6 +1473,9 @@
         const r = await syncTools(s);
         s.toolCount = r.count;
         s.skipped = r.skipped;
+        s.stale = false;
+        s.lastError = null;
+        cancelReconnect(s);
         return { ok: true, message: '服务器 ' + name + ' 已连接，工具已刷新（' + r.count + ' 个）', detail: { toolCount: r.count, skipped: r.skipped } };
       } catch (err) {
         return { ok: false, message: '刷新工具失败: ' + String((err && err.message) || err) };
@@ -1425,6 +1486,7 @@
     s.stale = false;
     try {
       await doConnect(s);
+      cancelReconnect(s);
       try { await persistServer(s); } catch {}
       return {
         ok: true,
@@ -1449,6 +1511,9 @@
       const r = await syncTools(s);
       s.toolCount = r.count;
       s.skipped = r.skipped;
+      s.stale = false;
+      s.lastError = null;
+      cancelReconnect(s);
       return { ok: true, message: '工具已刷新（' + r.count + ' 个）', detail: { toolCount: r.count, skipped: r.skipped } };
     } catch (err) {
       return { ok: false, message: '刷新失败: ' + String((err && err.message) || err) };
@@ -1641,3 +1706,4 @@
 
   console.log('[mcp] MCP 管理器已启动（Stdio / HTTP·SSE / OpenAPI）');
 };
+
