@@ -1,5 +1,3 @@
-[ERROR] - (starship::print): Under a 'dumb' terminal (TERM=dumb).
-
 // DSH MCP Manager - Host implementation.
 // Loaded by the plugin loader (code.host) via fs.readText + eval. Signature: (ctx, harness) => void
 (ctx, harness) => {
