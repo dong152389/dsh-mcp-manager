@@ -529,6 +529,19 @@
     return events;
   }
 
+  // Node's raw child_process.spawn cannot launch Windows .cmd/.bat shims
+  // directly (it throws EINVAL). DSH deliberately exposes argv-only spawning,
+  // so keep normal executables on the raw path and delegate only resolved
+  // command shims to cmd.exe. The configured command and arguments stay
+  // unchanged from the user's perspective (for example: npx + package name).
+  async function buildStdioArgv(exe, args) {
+    const argv = [exe].concat(args || []);
+    if (process.platform !== 'win32' || !/\.(?:cmd|bat)$/i.test(String(exe))) return argv;
+    const comspec = process.env.ComSpec || process.env.COMSPEC || 'cmd.exe';
+    const shell = await subprocess.resolveExecutable(comspec);
+    return [shell, '/d', '/s', '/c'].concat(argv);
+  }
+
   function createStdioTransport(cfg) {
     let handle = null;
     let onMessage = null;
@@ -538,7 +551,7 @@
       const exe = await subprocess.resolveExecutable(cfg.command);
       const cwd = cfg.cwd || workspaceRoot || 'C:\\';
       handle = subprocess.spawn({
-        argv: [exe].concat(cfg.args || []),
+        argv: await buildStdioArgv(exe, cfg.args || []),
         cwd,
         stdio: { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' },
         graceMs: 3000,
