@@ -208,7 +208,7 @@ dsh plugin --profile web add link:.
 | `prefix` | 全部 | 否 | 注册到大模型上下文中的工具名前缀，默认取服务器名称。 |
 | `headers` | `http` / `openapi` | 否 | 自定义 HTTP 请求头（键值对 JSON 对象）。 |
 | `token` | `http` / `openapi` | 否 | 快捷 Bearer 鉴权凭据，自动附加 `Authorization: Bearer <token>` 请求头。 |
-| `command` | `stdio` | **是** | 本地启动命令（如 `npx`、`node`、`python`、`uvx`）。 |
+| `command` | `stdio` | **是** | 本地启动命令（如 `npx`、`node`、`python`、`uvx`）。Windows 下请填可执行命令本身，不要把参数拼在这里；插件会兼容 `npx.cmd` / `npm.cmd` 等启动器。 |
 | `args` | `stdio` | 否 | 命令行启动参数数组（如 `["-y", "@modelcontextprotocol/server-filesystem", "/path"]`）。 |
 | `cwd` | `stdio` | 否 | 进程工作目录，缺省默认为当前会话工作区。 |
 | `env` | `stdio` | 否 | 环境变量字典（键值对 JSON 对象）。 |

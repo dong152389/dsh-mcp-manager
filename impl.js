@@ -507,6 +507,28 @@
   }
 
   // ================= 传输层 =================
+  // Windows 的 npm/npx 等命令通常是 .cmd/.bat 启动器。直接把它们交给
+  // CreateProcess 会失败，而部分宿主会退回到 shell 拼接，遇到
+  // `C:\Program Files\...` 时又会被截成 `C:\Program`。这里统一通过
+  // cmd.exe /d /s /c 启动，并对每个 token 做 cmd 级别的转义。
+  function escapeWindowsCmdToken(value) {
+    const text = String(value);
+    if (!text) return '""';
+    let out = '';
+    for (const ch of text) {
+      if (' ^&|<>%()"'.includes(ch) || ch === '\t') out += '^';
+      out += ch;
+    }
+    return out;
+  }
+  function buildStdioArgv(exe, args) {
+    const list = [exe].concat(Array.isArray(args) ? args : []);
+    if (process.platform !== 'win32' || !/\.(?:cmd|bat)$/i.test(String(exe))) return list;
+    const comspec = (process.env && (process.env.ComSpec || process.env.COMSPEC)) || 'cmd.exe';
+    const commandLine = list.map(escapeWindowsCmdToken).join(' ');
+    return [comspec, '/d', '/s', '/c', commandLine];
+  }
+
   function parseSseText(text) {
     const events = [];
     let name = 'message';
@@ -538,7 +560,7 @@
       const exe = await subprocess.resolveExecutable(cfg.command);
       const cwd = cfg.cwd || workspaceRoot || 'C:\\';
       handle = subprocess.spawn({
-        argv: [exe].concat(cfg.args || []),
+        argv: buildStdioArgv(exe, cfg.args),
         cwd,
         stdio: { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe' },
         graceMs: 3000,
@@ -1704,4 +1726,3 @@
 
   console.log('[mcp] MCP 管理器已启动（Stdio / HTTP·SSE / OpenAPI）');
 };
-
