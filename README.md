@@ -132,7 +132,7 @@ dsh --version
 | 能力 | 实际范围 |
 | :--- | :--- |
 | 文件 | 通过 DSH `fs` 读取用户指定的本地 OpenAPI 规范；通过 `storageDomain` 持久化 MCP 配置。不会写入 DSH 核心或官方 Profile 文件。 |
-| 命令 | 通过 DSH `subprocess` 启动用户配置的 STDIO MCP 可执行文件，以及插件自有 Node HTTP Bridge；使用参数数组，不接受 shell 字符串。用户配置的命令仍可能产生任意本地进程权限。 |
+| 命令 | 通过 DSH `subprocess` 启动用户配置的 STDIO MCP 可执行文件，以及插件自有 Node HTTP Bridge；使用参数数组，不接受 shell 字符串。Windows 下会自动兼容 `.cmd` / `.bat` 命令包装器。用户配置的命令仍可能产生任意本地进程权限。 |
 | 网络 | 可访问用户配置的 HTTP / SSE / OpenAPI URL；网络范围不是固定白名单，连接失败、超时和 SSE 断线会返回错误或触发指数退避重连。 |
 | 凭据 | 支持并持久化用户主动提供的 Bearer、Basic、API Key、请求头和 Cookie；不会主动收集其他凭据或把配置发送到本项目服务。 |
 | 外部依赖 | DSH 的 `subprocess`、`fs`、`tools`、`typert`、`storageDomain` 服务；Node.js；用户自行提供的 MCP 可执行文件和远端 MCP/OpenAPI 服务。 |
