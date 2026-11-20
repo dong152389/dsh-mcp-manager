@@ -7,9 +7,9 @@
   <em>A modern visual dashboard & control panel for managing Model Context Protocol (MCP) servers and OpenAPI tools in DeepSeek Harness.</em>
 </p>
 
-[![Version](https://img.shields.io/badge/version-0.1.2-3b82f6.svg?style=flat-square)](package.json)
+[![Version](https://img.shields.io/badge/version-0.2.0-3b82f6.svg?style=flat-square)](package.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-10b981.svg?style=flat-square)](LICENSE)
-[![DSH Compatibility](https://img.shields.io/badge/DSH-%E2%89%A50.1.1--rc.2-6366f1.svg?style=flat-square)](https://github.com/deepseek-ai)
+[![DSH Compatibility](https://img.shields.io/badge/DSH-%E2%89%A50.2.2--rc.0%20%3C0.3.0--0-6366f1.svg?style=flat-square)](https://github.com/deepseek-ai)
 [![Cordis](https://img.shields.io/badge/Cordis-v4.x-f59e0b.svg?style=flat-square)](https://cordis.moe/)
 [![MCP Protocol](https://img.shields.io/badge/Protocol-MCP%20%7C%20OpenAPI-8b5cf6.svg?style=flat-square)](https://modelcontextprotocol.io/)
 [![Platform](https://img.shields.io/badge/platform-DSH%20Web-ec4899.svg?style=flat-square)](#)
@@ -115,14 +115,14 @@ Model Context Protocol (MCP) 为大语言模型接入外部工具和知识源提
 
 | 依赖项 | 建议版本 | 说明 |
 | :--- | :--- | :--- |
-| **Node.js** | `>= 18.0.0` | ESM 运行环境与 Child Process 支持 |
-| **DeepSeek Harness (DSH)** | `>= 0.1.1-rc.2 < 0.2.0` | 具备 Cordis 4.x、Typert RPC 与 Tools 注入能力 |
+| **Node.js** | `>= 24.9.0` | ESM 运行环境与 Child Process 支持 |
+| **DeepSeek Harness (DSH)** | `>= 0.2.2-rc.0 < 0.3.0-0` | 具备 Cordis 4.x、Typert RPC 与 Tools 注入能力 |
 
 通过控制台检查当前环境中的 DSH 版本：
 
 ```powershell
 dsh --version
-# 输出示例: 0.1.1-rc.2
+# 输出示例: 0.2.2-rc.5
 ```
 
 ### 🔐 权限、依赖与失败边界

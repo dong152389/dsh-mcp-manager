@@ -10,12 +10,13 @@ const patch = await readFile(join(root, 'cordis.patch.yml'), 'utf8');
 const formalHost = await readFile(join(root, 'lib', 'index.js'), 'utf8');
 
 test('manifest declares canonical identity, license, and compatibility', () => {
-  assert.equal(manifest.version, '0.1.2');
+  assert.equal(manifest.version, '0.2.0');
   assert.equal(manifest.repository.url, 'git+https://github.com/dong152389/dsh-mcp-manager.git');
   assert.equal(manifest.license, 'MIT');
-  assert.equal(manifest.engines.node, '>=18.0.0');
-  assert.equal(manifest.dsh.compatibility.dsh, '>=0.1.1-rc.2 <0.2.0');
-  assert.equal(manifest.dsh.compatibility.dshReleases['0.1.1-rc.2'], 'compatible');
+  assert.equal(manifest.engines.node, '>=24.9.0');
+  assert.equal(manifest.engines.dsh, '>=0.2.2-rc.0 <0.3.0-0');
+  assert.equal(manifest.dsh.compatibility.dsh, '>=0.2.2-rc.0 <0.3.0-0');
+  assert.equal(manifest.dsh.compatibility.dshReleases['0.2.2-rc.5'], 'compatible');
   assert.ok(manifest.files.includes('LICENSE'));
   assert.ok(manifest.files.includes('SECURITY.md'));
   assert.ok(manifest.files.includes('docs'));
@@ -23,7 +24,7 @@ test('manifest declares canonical identity, license, and compatibility', () => {
 
 test('Bundle Patch contains the unique additive entry', () => {
   const ids = [...patch.matchAll(/^\s*- id:\s*([^\s#]+)\s*$/gm)].map((match) => match[1]);
-  assert.deepEqual(ids, ['mcp-manager']);
+  assert.deepEqual(ids, ['mcp-manager-ui']);
   assert.equal(new Set(ids).size, ids.length);
 });
 

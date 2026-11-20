@@ -35,7 +35,7 @@ if (rpcStart < 0 || cleanupIdx < 0) throw new Error('RPC 块标记未找到');
 const remoteBlock = `  // ================= Remote 服务（client 面板通信） =================
   class McpManagerService extends TypertRemoteService {
     constructor() {
-      super(ctx, 'mcpManager');
+      super(ctx, 'mcpManagerUi');
       markRemoteMethods(this);
     }
     async list() {
@@ -76,13 +76,13 @@ const remoteBlock = `  // ================= Remote 服务（client 面板通信�
         model: {},
         schemas: [],
         invocations: [
-          { id: 'dsh-mcp-manager#mcpManager/list', service: 'mcpManager', namespace: 'mcpManager', method: 'list', invocation: { kind: 'direct' }, parameters: [], result: { mode: 'src-json' } },
-          { id: 'dsh-mcp-manager#mcpManager/save', service: 'mcpManager', namespace: 'mcpManager', method: 'save', invocation: { kind: 'direct' }, parameters: [wire('payload')], result: { mode: 'src-json' } },
-          { id: 'dsh-mcp-manager#mcpManager/update', service: 'mcpManager', namespace: 'mcpManager', method: 'update', invocation: { kind: 'direct' }, parameters: [wire('serverName'), wire('payload')], result: { mode: 'src-json' } },
-          { id: 'dsh-mcp-manager#mcpManager/connect', service: 'mcpManager', namespace: 'mcpManager', method: 'connect', invocation: { kind: 'direct' }, parameters: [wire('serverName')], result: { mode: 'src-json' } },
-          { id: 'dsh-mcp-manager#mcpManager/disconnect', service: 'mcpManager', namespace: 'mcpManager', method: 'disconnect', invocation: { kind: 'direct' }, parameters: [wire('serverName')], result: { mode: 'src-json' } },
-          { id: 'dsh-mcp-manager#mcpManager/remove', service: 'mcpManager', namespace: 'mcpManager', method: 'remove', invocation: { kind: 'direct' }, parameters: [wire('serverName')], result: { mode: 'src-json' } },
-          { id: 'dsh-mcp-manager#mcpManager/refresh', service: 'mcpManager', namespace: 'mcpManager', method: 'refresh', invocation: { kind: 'direct' }, parameters: [wire('serverName')], result: { mode: 'src-json' } },
+          { id: 'dsh-mcp-manager#mcpManagerUi/list', service: 'mcpManagerUi', namespace: 'mcpManagerUi', method: 'list', invocation: { kind: 'direct' }, parameters: [], result: { mode: 'src-json' } },
+          { id: 'dsh-mcp-manager#mcpManagerUi/save', service: 'mcpManagerUi', namespace: 'mcpManagerUi', method: 'save', invocation: { kind: 'direct' }, parameters: [wire('payload')], result: { mode: 'src-json' } },
+          { id: 'dsh-mcp-manager#mcpManagerUi/update', service: 'mcpManagerUi', namespace: 'mcpManagerUi', method: 'update', invocation: { kind: 'direct' }, parameters: [wire('serverName'), wire('payload')], result: { mode: 'src-json' } },
+          { id: 'dsh-mcp-manager#mcpManagerUi/connect', service: 'mcpManagerUi', namespace: 'mcpManagerUi', method: 'connect', invocation: { kind: 'direct' }, parameters: [wire('serverName')], result: { mode: 'src-json' } },
+          { id: 'dsh-mcp-manager#mcpManagerUi/disconnect', service: 'mcpManagerUi', namespace: 'mcpManagerUi', method: 'disconnect', invocation: { kind: 'direct' }, parameters: [wire('serverName')], result: { mode: 'src-json' } },
+          { id: 'dsh-mcp-manager#mcpManagerUi/remove', service: 'mcpManagerUi', namespace: 'mcpManagerUi', method: 'remove', invocation: { kind: 'direct' }, parameters: [wire('serverName')], result: { mode: 'src-json' } },
+          { id: 'dsh-mcp-manager#mcpManagerUi/refresh', service: 'mcpManagerUi', namespace: 'mcpManagerUi', method: 'refresh', invocation: { kind: 'direct' }, parameters: [wire('serverName')], result: { mode: 'src-json' } },
         ],
       });
       console.log('[mcp] Remote 服务已严格注册到 typert 网关');
